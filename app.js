@@ -4,6 +4,7 @@ import authRouter from "./routes/authRoute.js";
 import connectDB from "./database/mongodb.js";
 import userRouter from "./routes/userRoute.js";
 import subscriptionRouter from "./routes/subscriptionRoute.js";
+import workflowRouter from "./routes/workflowRoute.js";
 
 const app = express();
 
@@ -14,6 +15,8 @@ app.get("/", (req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/subscriptions", subscriptionRouter);
+app.use("/api/v1/workflows", workflowRouter);
+
 app.listen(PORT, () => {
   connectDB();
   console.log(`Server is running on http://localhost:${PORT}`);
