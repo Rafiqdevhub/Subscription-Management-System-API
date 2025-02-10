@@ -28,4 +28,4 @@ const authorize = async (req, res, next) => {
   }
 };
 
-export { authorize };
+export default authorize;

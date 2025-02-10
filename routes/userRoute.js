@@ -6,7 +6,7 @@ import {
   getUsers,
   updateUser,
 } from "../controllers/userController.js";
-import { authorize } from "../middlewares/authMiddleware.js";
+import authorize from "../middlewares/authMiddleware.js";
 
 const userRouter = Router();
 
