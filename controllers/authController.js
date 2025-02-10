@@ -63,7 +63,6 @@ const signIn = async (req, res, next) => {
       throw error;
     }
 
-    const { password: _, ...userData } = user._doc;
     const token = jwt.sign({ userId: user._id }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN,
     });
@@ -71,7 +70,7 @@ const signIn = async (req, res, next) => {
     res.json({
       success: true,
       message: "User logged in successfully",
-      data: { token, user: userData },
+      data: { token, user },
     });
   } catch (error) {
     next(error);
