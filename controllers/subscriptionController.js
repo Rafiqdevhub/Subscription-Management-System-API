@@ -171,7 +171,6 @@ const renewalSubscription = async (req, res, next) => {
       throw error;
     }
 
-    // Calculate new renewal date based on frequency
     const renewalPeriods = {
       daily: 1,
       weekly: 7,
