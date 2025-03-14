@@ -13,10 +13,6 @@ const subscriptionRouter = Router();
 
 subscriptionRouter.get("/", authorize, getSubscription);
 
-subscriptionRouter.get("/:id", (req, res) =>
-  res.send({ title: "GET subscription details" })
-);
-
 subscriptionRouter.post("/", authorize, createSubscription);
 
 subscriptionRouter.put("/:id", authorize, updateSubscriptionById);
