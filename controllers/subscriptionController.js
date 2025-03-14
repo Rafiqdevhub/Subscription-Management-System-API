@@ -190,7 +190,7 @@ const renewalSubscription = async (req, res, next) => {
 
     await subscription.save();
 
-    const { workflowRunId } = await workflowClient.trigger({
+    await workflowClient.trigger({
       url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
       body: {
         subscriptionId: subscription.id,
