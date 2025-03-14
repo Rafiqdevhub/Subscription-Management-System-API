@@ -2,52 +2,116 @@ import { SERVER_URL } from "../config/env.js";
 import workflowClient from "../config/upstash.js";
 import Subscription from "../models/subscriptionModel.js";
 
+/**
+ * @desc    Create new subscription
+ * @route   POST /api/v1/subscriptions
+ * @access  Private
+ */
 const createSubscription = async (req, res, next) => {
   try {
+    const { name, price, frequency, category, paymentMethod, startDate } =
+      req.body;
+
+    // Basic validation
+    if (
+      !name ||
+      !price ||
+      !frequency ||
+      !category ||
+      !paymentMethod ||
+      !startDate
+    ) {
+      const error = new Error("Please provide all required fields");
+      error.statusCode = 400;
+      throw error;
+    }
+
     const subscription = await Subscription.create({
       ...req.body,
       user: req.user._id,
     });
 
-    // const { workflowRunId } = await workflowClient.trigger({
-    //   url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
-    //   body: {
-    //     subscriptionId: subscription.id,
-    //   },
-    //   headers: {
-    //     "content-type": "application/json",
-    //   },
-    //   retries: 0,
-    // });
-    res.status(201).json({ success: true, data: subscription });
+    // Trigger reminder workflow
+    try {
+      await workflowClient.trigger({
+        url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
+        body: { subscriptionId: subscription.id },
+        headers: { "content-type": "application/json" },
+        retries: 3,
+      });
+    } catch (workflowError) {
+      console.error("Failed to trigger reminder workflow:", workflowError);
+      // Don't fail the request if workflow fails
+    }
+
+    res.status(201).json({
+      success: true,
+      data: subscription,
+    });
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * @desc    Get all subscriptions
+ * @route   GET /api/v1/subscriptions
+ * @access  Private
+ */
 const getSubscription = async (req, res, next) => {
   try {
-    const subscription = await Subscription.find();
-    res.status(200).json({ success: true, data: subscription });
+    const subscriptions = await Subscription.find().populate(
+      "user",
+      "name email"
+    );
+
+    res.status(200).json({
+      success: true,
+      count: subscriptions.length,
+      data: subscriptions,
+    });
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * @desc    Get user's subscriptions
+ * @route   GET /api/v1/subscriptions/user/:id
+ * @access  Private
+ */
 const getSubscriptionsById = async (req, res, next) => {
   try {
     if (req.user.id !== req.params.id) {
-      const error = new Error("You are not the user of this account");
-      error.status = 401;
+      const error = new Error("Not authorized to access this resource");
+      error.statusCode = 403;
       throw error;
     }
-    const subscriptions = await Subscription.find({ user: req.params.id });
-    res.status(200).json({ success: true, data: subscriptions });
+
+    const subscriptions = await Subscription.find({
+      user: req.params.id,
+    }).populate("user", "name email");
+
+    res.status(200).json({
+      success: true,
+      count: subscriptions.length,
+      data: subscriptions,
+    });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid user ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };
 
+/**
+ * @desc    Update subscription
+ * @route   PUT /api/v1/subscriptions/:id
+ * @access  Private
+ */
 const updateSubscriptionById = async (req, res, next) => {
   try {
     const subscription = await Subscription.findById(req.params.id);
@@ -59,16 +123,30 @@ const updateSubscriptionById = async (req, res, next) => {
     }
 
     if (subscription.user.toString() !== req.user._id.toString()) {
-      const error = new Error(
-        "You are not authorized to update this subscription"
-      );
+      const error = new Error("Not authorized to update this subscription");
       error.statusCode = 403;
       throw error;
     }
 
+    // Only allow updating specific fields
+    const allowedUpdates = [
+      "name",
+      "price",
+      "currency",
+      "frequency",
+      "category",
+      "paymentMethod",
+    ];
+    const updates = Object.keys(req.body)
+      .filter((key) => allowedUpdates.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = req.body[key];
+        return obj;
+      }, {});
+
     const updatedSubscription = await Subscription.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updates,
       { new: true, runValidators: true }
     );
 
@@ -77,10 +155,20 @@ const updateSubscriptionById = async (req, res, next) => {
       data: updatedSubscription,
     });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid subscription ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };
 
+/**
+ * @desc    Delete subscription
+ * @route   DELETE /api/v1/subscriptions/:id
+ * @access  Private
+ */
 const deleteSubscription = async (req, res, next) => {
   try {
     const subscription = await Subscription.findById(req.params.id);
@@ -92,9 +180,7 @@ const deleteSubscription = async (req, res, next) => {
     }
 
     if (subscription.user.toString() !== req.user._id.toString()) {
-      const error = new Error(
-        "You are not authorized to delete this subscription"
-      );
+      const error = new Error("Not authorized to delete this subscription");
       error.statusCode = 403;
       throw error;
     }
@@ -104,12 +190,23 @@ const deleteSubscription = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Subscription deleted successfully",
+      data: null,
     });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid subscription ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };
 
+/**
+ * @desc    Cancel subscription
+ * @route   PUT /api/v1/subscriptions/:id/cancel
+ * @access  Private
+ */
 const cancelSubscription = async (req, res, next) => {
   try {
     const subscription = await Subscription.findById(req.params.id);
@@ -121,9 +218,7 @@ const cancelSubscription = async (req, res, next) => {
     }
 
     if (subscription.user.toString() !== req.user._id.toString()) {
-      const error = new Error(
-        "You are not authorized to cancel this subscription"
-      );
+      const error = new Error("Not authorized to cancel this subscription");
       error.statusCode = 403;
       throw error;
     }
@@ -143,10 +238,20 @@ const cancelSubscription = async (req, res, next) => {
       data: subscription,
     });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid subscription ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };
 
+/**
+ * @desc    Renew subscription
+ * @route   PUT /api/v1/subscriptions/:id/renew
+ * @access  Private
+ */
 const renewalSubscription = async (req, res, next) => {
   try {
     const subscription = await Subscription.findById(req.params.id);
@@ -158,9 +263,7 @@ const renewalSubscription = async (req, res, next) => {
     }
 
     if (subscription.user.toString() !== req.user._id.toString()) {
-      const error = new Error(
-        "You are not authorized to renew this subscription"
-      );
+      const error = new Error("Not authorized to renew this subscription");
       error.statusCode = 403;
       throw error;
     }
@@ -190,16 +293,18 @@ const renewalSubscription = async (req, res, next) => {
 
     await subscription.save();
 
-    await workflowClient.trigger({
-      url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
-      body: {
-        subscriptionId: subscription.id,
-      },
-      headers: {
-        "content-type": "application/json",
-      },
-      retries: 0,
-    });
+    // Trigger reminder workflow
+    try {
+      await workflowClient.trigger({
+        url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
+        body: { subscriptionId: subscription.id },
+        headers: { "content-type": "application/json" },
+        retries: 3,
+      });
+    } catch (workflowError) {
+      console.error("Failed to trigger reminder workflow:", workflowError);
+      // Don't fail the request if workflow fails
+    }
 
     res.status(200).json({
       success: true,
@@ -207,6 +312,11 @@ const renewalSubscription = async (req, res, next) => {
       data: subscription,
     });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid subscription ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };

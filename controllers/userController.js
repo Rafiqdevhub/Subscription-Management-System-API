@@ -1,11 +1,17 @@
 import User from "../models/userModel.js";
 
+/**
+ * @desc    Get all users
+ * @route   GET /api/v1/users
+ * @access  Public
+ */
 const getUsers = async (req, res, next) => {
   try {
     const users = await User.find().select("-password");
 
     res.status(200).json({
       success: true,
+      count: users.length,
       data: users,
     });
   } catch (error) {
@@ -13,6 +19,11 @@ const getUsers = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get single user
+ * @route   GET /api/v1/users/:id
+ * @access  Private
+ */
 const getUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id).select("-password");
@@ -26,13 +37,30 @@ const getUser = async (req, res, next) => {
       data: user,
     });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid user ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };
 
+/**
+ * @desc    Create new user
+ * @route   POST /api/v1/users
+ * @access  Public
+ */
 const createUser = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email, name, password } = req.body;
+
+    // Basic validation
+    if (!email || !name || !password) {
+      const error = new Error("Please provide all required fields");
+      error.statusCode = 400;
+      throw error;
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -41,19 +69,39 @@ const createUser = async (req, res, next) => {
       throw error;
     }
 
-    const user = await User.create(req.body);
+    const user = await User.create({
+      name,
+      email,
+      password,
+    });
+
+    // Don't send password in response
+    const userResponse = user.toObject();
+    delete userResponse.password;
 
     res.status(201).json({
       success: true,
-      data: user,
+      data: userResponse,
     });
   } catch (error) {
     next(error);
   }
 };
 
+/**
+ * @desc    Update user
+ * @route   PUT /api/v1/users/:id
+ * @access  Private
+ */
 const updateUser = async (req, res, next) => {
   try {
+    const { name, email } = req.body;
+    const updates = {};
+
+    // Only update fields that are sent
+    if (name) updates.name = name;
+    if (email) updates.email = email;
+
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -62,8 +110,8 @@ const updateUser = async (req, res, next) => {
       throw error;
     }
 
-    if (req.body.email && req.body.email !== user.email) {
-      const existingUser = await User.findOne({ email: req.body.email });
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ email });
       if (existingUser) {
         const error = new Error("Email already in use");
         error.statusCode = 409;
@@ -71,20 +119,34 @@ const updateUser = async (req, res, next) => {
       }
     }
 
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    }).select("-password");
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select("-password");
 
     res.status(200).json({
       success: true,
       data: updatedUser,
     });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid user ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };
 
+/**
+ * @desc    Delete user
+ * @route   DELETE /api/v1/users/:id
+ * @access  Private
+ */
 const deleteUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -100,8 +162,14 @@ const deleteUser = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "User deleted successfully",
+      data: null,
     });
   } catch (error) {
+    if (error.name === "CastError") {
+      const newError = new Error("Invalid user ID format");
+      newError.statusCode = 400;
+      return next(newError);
+    }
     next(error);
   }
 };

@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { sendReminders } from "../controllers/workflowController.js";
+import authorize from "../middlewares/authMiddleware.js";
 
 const workflowRouter = Router();
 
-workflowRouter.post("/subscription/reminder", sendReminders);
+// Add authorization to protect workflow endpoints
+workflowRouter.post("/subscription/reminder", authorize, sendReminders);
 
 export default workflowRouter;
