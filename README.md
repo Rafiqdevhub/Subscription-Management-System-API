@@ -5,6 +5,7 @@
 1. 🤖 [Introduction](#introduction)
 2. ⚙️ [Tech Stack](#-tech-stack)
 3. 🔋 [Features](#features)
+4. 📜 [License](#license)
 
 ## 🤖 Introduction
 
@@ -39,3 +40,7 @@ Make sure you have the following installed on your machine:
 - [Git](https://git-scm.com/)
 - [Node.js](https://nodejs.org/en)
 - [npm](https://www.npmjs.com/) (Node Package Manager)
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
