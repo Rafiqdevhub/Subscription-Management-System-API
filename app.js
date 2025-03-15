@@ -8,9 +8,36 @@ import workflowRouter from "./routes/workflowRoute.js";
 import errorMiddleware from "./middlewares/errorMiddleware.js";
 import cookieParser from "cookie-parser";
 import arcjetMiddleware from "./middlewares/arcjetMiddleware.js";
+import morgan from "morgan";
+import helmet from "helmet";
+import winston from "winston";
+
+// Initialize winston logger
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: "error.log", level: "error" }),
+    new winston.transports.File({ filename: "combined.log" }),
+  ],
+});
+
+if (process.env.NODE_ENV !== "production") {
+  logger.add(
+    new winston.transports.Console({
+      format: winston.format.simple(),
+    })
+  );
+}
 
 const app = express();
 
+app.use(
+  morgan("combined", {
+    stream: { write: (message) => logger.info(message.trim()) },
+  })
+);
+app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -28,6 +55,6 @@ app.get("/", (req, res) => {
 });
 
 app.listen(PORT, async () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  logger.info(`Server is running on http://localhost:${PORT}`);
   await connectDB();
 });
