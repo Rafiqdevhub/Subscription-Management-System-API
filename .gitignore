@@ -44,4 +44,8 @@ typings/
 .env.development.local
 .env.production.local
 
+# Exclude environment-specific configuration files
+.env.development
+.env.production
+
 .next
