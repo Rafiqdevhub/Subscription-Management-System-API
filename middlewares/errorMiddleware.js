@@ -1,4 +1,4 @@
-const errorMiddleware = (err, req, res) => {
+const errorMiddleware = (err, req, res, next) => {
   try {
     console.error(`Error [${req.method} ${req.url}]:`, {
       message: err.message,
